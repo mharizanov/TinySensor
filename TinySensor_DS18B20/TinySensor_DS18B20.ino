@@ -2,7 +2,7 @@
 // TempTX-tiny ATtiny84 Based Wireless Temperature Sensor Node
 // By Nathan Chantrell http://nathan.chantrell.net
 // Updated by Martin Harizanov (harizanov.com) to work with DS18B20
-// To use with DS18B20 instead of TMP36, a 4K7 resistor is needed between the Digital 9 and Digital 10 of the ATTiny (Vdd and DQ)
+// To use with DS18B20 instead of DS18B20, a 4K7 resistor is needed between the Digital 9 and Digital 10 of the ATTiny (Vdd and DQ)
 // To get this to compile follow carefully the discussion here: http://arduino.cc/forum/index.php?topic=91491.0
 // GNU GPL V3
 //--------------------------------------------------------------------------------------
@@ -66,18 +66,19 @@ void setup() {
   // Adjust low battery voltage to 2.2V
   rf12_control(0xC040);
   rf12_sleep(0);                          // Put the RFM12 to sleep
-  pinMode(tempPower, OUTPUT); // set power pin for TMP36 to output
+  pinMode(tempPower, OUTPUT); // set power pin for DS18B20 to output
 
   digitalWrite(tempPower, HIGH); // turn sensor power on
-  delay(500);
+  Sleepy::loseSomeTime(50); // Allow 50ms for the sensor to be ready
+
   // Start up the library
   sensors.begin(); 
 }
 
 void loop() {
   
-  digitalWrite(tempPower, HIGH); // turn TMP36 sensor on
-  delay(50); // Allow 50ms for the sensor to be ready
+  digitalWrite(tempPower, HIGH); // turn DS18B20 sensor on
+  Sleepy::loseSomeTime(50); // Allow 50ms for the sensor to be ready
   
   sensors.requestTemperatures(); // Send the command to get temperatures  
 
@@ -86,14 +87,22 @@ void loop() {
   temptx.temp=(sensors.getTempCByIndex(0)*100); // read sensor 1
   temptx.temp2=(sensors.getTempCByIndex(1)*100); // read second sensor.. you may have multiple and count them upon startup but I only need two
 
-  digitalWrite(tempPower, LOW); // turn TMP36 sensor off
+  digitalWrite(tempPower, LOW); // turn DS18B20 sensor off
   
   temptx.supplyV = readVcc(); // Get supply voltage
 
   rfwrite(); // Send data via RF 
 
-  Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
-    
+  pinMode(tempPower, INPUT); // set power pin for TMP36 to input before sleeping, saves power
+  digitalWrite(tempPower, LOW);
+ 
+  for(byte j = 0; j < 5; j++) {    // Sleep for 5 minutes
+    Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
+  }
+
+  pinMode(tempPower, OUTPUT); // set power pin for TMP36 to output  
+
+
 }
 
 //--------------------------------------------------------------------------------------------------

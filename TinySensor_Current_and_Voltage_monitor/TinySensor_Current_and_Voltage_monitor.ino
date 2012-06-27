@@ -4,39 +4,44 @@
 //
 // GNU GPL V3
 //--------------------------------------------------------------------------------------
+#include "EmonLib.h" // Include Emon Library
+EnergyMonitor emon1; // Create an instance
 
 #ifdef F_CPU  
 #undef F_CPU
 #endif  
 #define F_CPU 4000000 // 4 MHz  
-#define BODS 7                   //BOD Sleep bit in MCUCR
-#define BODSE 2                  //BOD Sleep enable bit in MCUCR
 
 #include <JeeLib.h> // https://github.com/jcw/jeelib
 #include "pins_arduino.h"
 
+/*
+                     +-\/-+
+               VCC  1|    |14  GND
+          (D0) PB0  2|    |13  AREF (D10)
+          (D1) PB1  3|    |12  PA1 (D9)
+             RESET  4|    |11  PA2 (D8)
+INT0  PWM (D2) PB2  5|    |10  PA3 (D7)
+      PWM (D3) PA7  6|    |9   PA4 (D6)
+      PWM (D4) PA6  7|    |8   PA5 (D5) PWM
+                     +----+
+*/
+
+
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
-#define myNodeID 2      // RF12 node ID in the range 1-30
+#define myNodeID 10      // RF12 node ID in the range 1-30
 #define network 210      // RF12 Network group
 #define freq RF12_868MHZ // Frequency of RFM12B module
 
-#define tempPin A0       // TMP36 Vout connected to A0 (ATtiny pin 13)
-#define tempPower 0      // TMP36 Power pin is connected on pin D9 (ATtiny pin 12)
-
-int tempReading;         // Analogue reading from the sensor
 
 //########################################################################################################################
 //Data Structure to be sent
 //########################################################################################################################
 
- typedef struct {
-  	  int temp;	// Temperature reading
-  	  int supplyV;	// Supply voltage
-  	  int temp2;	// Temperature reading  
- } Payload;
-
- Payload temptx;
+// realPower|apparentPower|Vrms|Irms|powerFactor
+typedef struct { int realPower, apparentPower, Vrms, powerFactor; double Irms;} PayloadTX;
+PayloadTX emontx;
 
 //########################################################################################################################
 
@@ -48,15 +53,17 @@ static void setPrescaler (uint8_t mode) {
 }
 
 void setup() {
-  MCUCR |= _BV(BODS) | _BV(BODSE);          //turn off the brown-out detector  
+  
   setPrescaler(1);    // div 1, i.e. 4 MHz
   //setPrescaler(15); // div 8, i.e. 1 MHz div 256 (15) = 32kHz
   //setPrescaler(3);  // div 8, i.e. 1 MHz
   
-  analogReference(INTERNAL);  // Set the aref to the internal 1.1V reference
-  pinMode(tempPower, OUTPUT); // set power pin for TMP36 to output
-  pinMode(tempPin, INPUT); // set power pin for TMP36 to input before sleeping, saves power
-  
+//  analogReference(INTERNAL);  // Set the aref to the internal 1.1V reference
+
+  emon1.voltage(8, 212.658, 1.7);  // Voltage: input pin, calibration, phase_shift
+  emon1.current(9, 60.61);       // Current: input pin, calibration.
+
+
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
   // Adjust low battery voltage to 2.2V 
   rf12_control(0xC040);
@@ -67,42 +74,33 @@ void setup() {
 
 void loop() {
   
-  setPrescaler(3);  // div 8, i.e. 1 MHz
+  setPrescaler(1);  // div 8, i.e. 4 MHz
   bitClear(PRR, PRADC); // power up the ADC
   ADCSRA |= bit(ADEN); // enable the ADC  
-  digitalWrite(tempPower, HIGH); // turn TMP36 sensor on
-
-  Sleepy::loseSomeTime(16); // Allow 10ms for the sensor to be ready
-  analogRead(tempPin); // throw away the first reading
-  for(int i = 0; i < 10 ; i++) // take 10 more readings
-  {
-   tempReading += analogRead(tempPin); // accumulate readings
-  }
-  tempReading = tempReading / 10 ; // calculate the average
   
-  digitalWrite(tempPower, LOW); // turn TMP36 sensor off
-  pinMode(tempPower, INPUT); // set power pin for TMP36 to input before sleeping, saves power
-  digitalWrite(tempPower, HIGH);
-
-  temptx.supplyV = readVcc(); // Get supply voltage
+  Sleepy::loseSomeTime(16); // Allow 10ms for the sensor to be ready
+  
+  //emontx.supplyV = readVcc(); // Get supply voltage
+  
+  emon1.calcVI(20,2000);         // Calculate all. No.of wavelengths, time-out
+  // realPower|apparentPower|Vrms|Irms|powerFactor
+  emontx.realPower = emon1.realPower;
+  emontx.apparentPower = emon1.apparentPower;
+  emontx.Vrms = emon1.Vrms;
+  emontx.Irms = emon1.Irms;
+  emontx.powerFactor = emon1.powerFactor*100;
+ 
   
   ADCSRA &= ~ bit(ADEN); // disable the ADC
   bitSet(PRR, PRADC); // power down the ADC
   
 
-//  double voltage = tempReading * (1100/1024); // Convert to mV (assume internal reference is accurate)
-  
-  double voltage = tempReading * 0.942382812; // Calibrated conversion to mV
-  double temperatureC = (voltage - 500) / 10; // Convert to temperature in degrees C. 
-  temptx.temp = temperatureC * 100; // Convert temperature to an integer, reversed at receiving end
-  temptx.temp2 = 1 * 100; // Convert temperature to an integer, reversed at receiving end
   rfwrite(); // Send data via RF 
 
-  for(byte j = 0; j < 15; j++) {    // Sleep for 5 minutes
-    Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
-  }
+//  for(byte j = 0; j < 5; j++) {    // Sleep for 5 minutes
+    Sleepy::loseSomeTime(5000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
+//  }
 
-  pinMode(tempPower, OUTPUT); // set power pin for TMP36 to output  
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -114,11 +112,11 @@ void loop() {
    rf12_sleep(-1);     //wake up RF module
    while (!rf12_canSend())
      rf12_recvDone();
-   rf12_sendStart(0, &temptx, sizeof temptx); 
+   rf12_sendStart(0, &emontx, sizeof emontx); 
    rf12_sendWait(2);    //wait for RF to finish sending while in standby mode
    rf12_sleep(0);    //put RF module to sleep
    bitSet(PRR, PRUSI); // disable USI h/w
-   setPrescaler(3); // div 8, i.e. 1 MHz
+   setPrescaler(4); // div 8, i.e. 4 MHz
 }
 
 //--------------------------------------------------------------------------------------------------
