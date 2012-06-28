@@ -56,8 +56,8 @@ typedef struct {
 static RF12Config config;
 
 static char cmd;
-static byte value, stack[30], top, sendLen, dest, quiet;
-static byte testbuf[30], testCounter;
+static byte value, stack[25], top, sendLen, dest, quiet;
+static byte testbuf[25], testCounter;
 
 
 static void saveConfig () {
@@ -66,6 +66,10 @@ static void saveConfig () {
     eeprom_write_byte(RF12_EEPROM_ADDR ,config.nodeId);
     eeprom_write_byte(RF12_EEPROM_ADDR +1 ,config.group);
 
+    config.crc = ~0;
+    config.crc = _crc16_update(config.crc, config.nodeId);     
+    config.crc = _crc16_update(config.crc, config.group);        
+        
     for (int i=2; i < RF12_EEPROM_SIZE-2; i++) {
         eeprom_write_byte(RF12_EEPROM_ADDR + i, 0);
         config.crc = _crc16_update(config.crc, 0);        
@@ -110,10 +114,14 @@ static void showHelp () {
     config.nodeId = eeprom_read_byte(RF12_EEPROM_ADDR);
     config.group = eeprom_read_byte(RF12_EEPROM_ADDR + 1);
 
+    mySerial.println("EEPROM config: ");        
     uint16_t crc = ~0;
-    for (uint8_t i = 0; i < RF12_EEPROM_SIZE; ++i)
+    for (uint8_t i = 0; i < RF12_EEPROM_SIZE; ++i){
         crc = _crc16_update(crc, eeprom_read_byte(RF12_EEPROM_ADDR + i));
-
+       mySerial.print(eeprom_read_byte(RF12_EEPROM_ADDR + i),HEX);
+    }
+    mySerial.println("");        
+    
     mySerial.print("crc:");        
     mySerial.print(crc);        
     mySerial.print(" ");            
@@ -221,7 +229,7 @@ void setup() {
     }
    
     showHelp();
-   activityLed(0);
+    activityLed(0);
 }
 
 void loop() {
