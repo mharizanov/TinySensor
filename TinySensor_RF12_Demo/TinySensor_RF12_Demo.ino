@@ -56,8 +56,8 @@ typedef struct {
 static RF12Config config;
 
 static char cmd;
-static byte value, stack[25], top, sendLen, dest, quiet;
-static byte testbuf[25], testCounter;
+static byte value, stack[30], top, sendLen, dest, quiet;
+static byte testbuf[30], testCounter;
 
 
 static void saveConfig () {
@@ -114,6 +114,7 @@ static void showHelp () {
     config.nodeId = eeprom_read_byte(RF12_EEPROM_ADDR);
     config.group = eeprom_read_byte(RF12_EEPROM_ADDR + 1);
 
+/*
     mySerial.println("EEPROM config: ");        
     uint16_t crc = ~0;
     for (uint8_t i = 0; i < RF12_EEPROM_SIZE; ++i){
@@ -125,7 +126,8 @@ static void showHelp () {
     mySerial.print("crc:");        
     mySerial.print(crc);        
     mySerial.print(" ");            
-    
+ */
+ 
     byte id = config.nodeId & 0x1F;
     mySerial.print('@' + id,DEC);
     mySerial.print(" i");
@@ -212,7 +214,7 @@ void setup() {
     pinMode(txPin, OUTPUT);
     
     // set the data rate for the NewSoftmymySerial port
-    mySerial.begin(57600);
+    mySerial.begin(9600);
     
     mySerial.print("\n[RF12demo.Attiny84]");
 
