@@ -27,7 +27,7 @@ INT0  PWM (D2) PB2  5|    |10  PA3 (D7)
 #include <avr/pgmspace.h>
 #include <avr/eeprom.h>
 
-#define LED_PIN     8   // activity LED, comment out to disable
+#define LED_PIN     8   
 
 #define COLLECT 0x20 // collect mode, i.e. pass incoming without sending acks
 
@@ -216,7 +216,7 @@ void setup() {
     // set the data rate for the NewSoftmymySerial port
     mySerial.begin(9600);
     
-    mySerial.print("\n[RF12demo.Attiny84]");
+    mySerial.print("\n[RF12demo.Attiny84]\n");
 
     delay(2000);
 

@@ -37,7 +37,7 @@ void setup(){
     pinMode(txPin, OUTPUT);
   
     // set the data rate for the NewSoftmySerial port
-    mySerial.begin(9600);
+    mySerial.begin(38400);
   
     mySerial.println("\n[TinySensor RFM12b to Serial v1.1]");
     rf12_initialize(MYNODE, freq,group);
