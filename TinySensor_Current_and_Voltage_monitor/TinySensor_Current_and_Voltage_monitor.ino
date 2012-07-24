@@ -116,7 +116,7 @@ void loop() {
    rf12_sendWait(2);    //wait for RF to finish sending while in standby mode
    rf12_sleep(0);    //put RF module to sleep
    bitSet(PRR, PRUSI); // disable USI h/w
-   setPrescaler(4); // div 8, i.e. 4 MHz
+   setPrescaler(4); // div 4, i.e. 1 MHz
 }
 
 //--------------------------------------------------------------------------------------------------

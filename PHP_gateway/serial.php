@@ -28,13 +28,15 @@ function getcontent($server, $port, $file)
    {
        $com = "GET $file HTTP/1.1\r\nAccept: */*\r\nAccept-Language: de-ch\r\nAccept-Encoding: gzip, deflate\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)\r\nHost: $server:$port\r\nConnection: Keep-Alive\r\n\r\n";
        fputs($fp, $com);
+/* Don't realy need to fetch output as it slows us down
        while (!feof($fp))
        {
            $cont .= fread($fp, 500);
        }
+*/	   
        fclose($fp);
-       $cont = substr($cont, strpos($cont, "\r\n\r\n") + 4);
-       return $cont;
+//       $cont = substr($cont, strpos($cont, "\r\n\r\n") + 4);
+//       return $cont;
    }
 }
 
