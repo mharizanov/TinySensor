@@ -4,12 +4,14 @@
 // GNU GPL V3
 //--------------------------------------------------------------------------------------
 
+
+
 #include <JeeLib.h> // https://github.com/jcw/jeelib
 #include "pins_arduino.h"
 
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Sleepy power saving
 
-#define myNodeID 22      // RF12 node ID in the range 1-30
+#define myNodeID 20      // RF12 node ID in the range 1-30
 #define network 210      // RF12 Network group
 #define freq RF12_868MHZ // Frequency of RFM12B module
 
@@ -36,6 +38,10 @@ INT0  PWM (D2) PB2  5|    |10  PA3 (D7)
 
 int tempReading;         // Analogue reading from the sensor
 
+#define LDR 2             //PA2
+unsigned int ldrReading;         // Analogue reading from the sensor
+
+
 //########################################################################################################################
 //Data Structure to be sent
 //########################################################################################################################
@@ -44,6 +50,7 @@ int tempReading;         // Analogue reading from the sensor
   	  int temp;	// Temperature reading
   	  int supplyV;	// Supply voltage
   	  int temp2;	// Actually humidity reading 
+	  int ldr;
  } Payload;
 
  Payload temptx;
@@ -52,49 +59,83 @@ int tempReading;         // Analogue reading from the sensor
 
 void setup() {
   rf12_initialize(myNodeID,freq,network); // Initialize RFM12 with settings defined above 
-  // Adjust low battery voltage to 2.2V UNTESTED!!!!!!!!!!!!!!!!!!!!!
   rf12_control(0xC040);
   rf12_sleep(0);                          // Put the RFM12 to sleep
   analogReference(INTERNAL);  // Set the aref to the internal 1.1V reference
   pinMode(tempPower, OUTPUT); // set power pin for DHT11 to output
+  pinMode(LDR, INPUT);
 }
 
 void loop() {
   
+  bitClear(PRR, PRADC); // power up the ADC
+  ADCSRA |= bit(ADEN); // enable the ADC  
+  
   digitalWrite(tempPower, HIGH); // turn DHT11 sensor on
-  delay(1000);
-
+  
+  // The DHT11 requires some time to wake up
+  Sleepy::loseSomeTime(1200); 
   int chk = DHT11.read(DHT11PIN);  //DHT11 doesn't support the decimal part of the reading, only the int part...
+
+  digitalWrite(tempPower, LOW); // turn DHT11 sensor off
+
+  //read LDR, pins shared
+  pinMode(tempPower, INPUT); // set power pin for TMP36 to input before sleeping, saves power
+  pinMode(DHT11PIN, OUTPUT);
+  digitalWrite(DHT11PIN, HIGH); // turn DHT11 sensor on
+  
+  analogRead(LDR); // throw away the first reading
+  for(int i = 0; i < 10 ; i++) // take 10 more readings
+  {
+    ldrReading += analogRead(LDR); // accumulate readings
+  }
+  ldrReading = ldrReading / 10 ; // calculate the average
+
+  pinMode(DHT11PIN, INPUT);
+  digitalWrite(DHT11PIN, HIGH); // turn DHT11 sensor on
+
+
+  
+  digitalWrite(tempPower, HIGH); // enable pull-ups
+
   
   if(chk==DHTLIB_OK) {
 
   temptx.temp = DHT11.temperature * 100; // Convert temperature to an integer, reversed at receiving end
   temptx.temp2 = DHT11.humidity * 100; // Convert temperature to an integer, reversed at receiving end
-
+  temptx.ldr = ldrReading;
   }
 
-  digitalWrite(tempPower, LOW); // turn DHT11 sensor off
-
   temptx.supplyV = readVcc(); // Get supply voltage
-  rfwrite(); // Send data via RF 
+  
+  ADCSRA &= ~ bit(ADEN); // disable the ADC
+  bitSet(PRR, PRADC); // power down the ADC
 
+  rfwrite(); // Send data via RF 
 
   for(int j = 0; j < 5; j++) {    // Sleep for 5 minutes
     Sleepy::loseSomeTime(1000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
   }
+  pinMode(tempPower, OUTPUT); // set power pin for TMP36 to output  
+  
 }
 
 //--------------------------------------------------------------------------------------------------
 // Send payload data via RF
 //--------------------------------------------------------------------------------------------------
  static void rfwrite(){
+
+   bitClear(PRR, PRUSI); // enable USI h/w
    rf12_sleep(-1);     //wake up RF module
    while (!rf12_canSend())
-   rf12_recvDone();
+     rf12_recvDone();
    rf12_sendStart(0, &temptx, sizeof temptx); 
    rf12_sendWait(2);    //wait for RF to finish sending while in standby mode
    rf12_sleep(0);    //put RF module to sleep
+   bitSet(PRR, PRUSI); // disable USI h/w
+
 }
+
 
 //--------------------------------------------------------------------------------------------------
 // Read current supply voltage
