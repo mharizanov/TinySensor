@@ -21,7 +21,8 @@ ISR(WDT_vect) { Sleepy::watchdogEvent(); } // interrupt handler for JeeLabs Slee
 dht11 DHT11;
 #define DHT11PIN 0
 
-
+#define MOISTUREPIN 1 //PA1
+unsigned int moistureReading;
 
 /*
                      +-\/-+
@@ -38,7 +39,7 @@ INT0  PWM (D2) PB2  5|    |10  PA3 (D7)
 
 int tempReading;         // Analogue reading from the sensor
 
-#define LDR PA2             //PA2
+#define LDR 2             //PA2
 unsigned int ldrReading;         // Analogue reading from the sensor
 
 
@@ -63,8 +64,10 @@ void setup() {
   rf12_control(0xC040);
   rf12_sleep(0);                          // Put the RFM12 to sleep
   analogReference(INTERNAL);  // Set the aref to the internal 1.1V reference
+
   pinMode(tempPower, OUTPUT); // set power pin for DHT11 to output
   pinMode(LDR, INPUT);
+  pinMode(MOISTUREPIN, INPUT);
 }
 
 void loop() {
@@ -76,35 +79,36 @@ void loop() {
   
   // The DHT11 requires some time to wake up
   Sleepy::loseSomeTime(1200); 
-
   int chk = DHT11.read(DHT11PIN);  //DHT11 doesn't support the decimal part of the reading, only the int part...
-  if(chk==DHTLIB_OK) {
-  temptx.temp = DHT11.temperature * 100; // Convert temperature to an integer, reversed at receiving end
-  temptx.temp2 = DHT11.humidity * 100; // Convert temperature to an integer, reversed at receiving end
-  }
 
+  if(chk==DHTLIB_OK) {
+    temptx.temp = DHT11.temperature * 100; // Convert temperature to an integer, reversed at receiving end
+    temptx.temp2 = DHT11.humidity * 100; // Convert temperature to an integer, reversed at receiving end
+  }
+  
   digitalWrite(tempPower, LOW); // turn DHT11 sensor off
 
   //read LDR, pins shared
   pinMode(tempPower, INPUT); // set power pin for TMP36 to input before sleeping, saves power
   pinMode(DHT11PIN, OUTPUT);
-  digitalWrite(DHT11PIN, HIGH); // turn DHT11 sensor on
+  digitalWrite(DHT11PIN, HIGH); // power on the LDR now
   
   analogRead(LDR); // throw away the first reading
+//  analogRead(MOISTUREPIN);
+
   for(int i = 0; i < 10 ; i++) // take 10 more readings
   {
     ldrReading += analogRead(LDR); // accumulate readings
+//    moistureReading+=analogRead(MOISTUREPIN); // accumulate readings
   }
   ldrReading = ldrReading / 10 ; // calculate the average
-
-  pinMode(DHT11PIN, INPUT);
-  digitalWrite(DHT11PIN, HIGH); // turn DHT11 sensor on
-
-
+//  moistureReading = moistureReading / 10 ; // calculate the average
   
-  digitalWrite(tempPower, HIGH); // enable pull-ups
+  pinMode(DHT11PIN, INPUT);
+  digitalWrite(DHT11PIN, HIGH); // pullup
   
   temptx.ldr = ldrReading;
+  temptx.moisture =  111; //moistureReading;
   temptx.supplyV = readVcc(); // Get supply voltage
   
   ADCSRA &= ~ bit(ADEN); // disable the ADC
@@ -112,8 +116,8 @@ void loop() {
 
   rfwrite(); // Send data via RF 
 
-  for(int j = 0; j < 1; j++) {    // Sleep for 5 minutes
-    Sleepy::loseSomeTime(60000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
+  for(int j = 0; j < 5; j++) {    // Sleep for 5 minutes
+    Sleepy::loseSomeTime(1000); //JeeLabs power save function: enter low power mode for 60 seconds (valid range 16-65000 ms)
   }
   pinMode(tempPower, OUTPUT); // set power pin for TMP36 to output  
   

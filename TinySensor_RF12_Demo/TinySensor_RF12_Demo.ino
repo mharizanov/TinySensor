@@ -2,11 +2,11 @@
 // Configure some values in EEPROM for easy config of the RF12 later on.
 // 2009-05-06 <jc@wippler.nl> http://opensource.org/licenses/mit-license.php
 
-#include <NewSoftSerial.h>
+#include <SoftwareSerial.h>
 #define rxPin 7 //PA3
 #define txPin 3 //PA7
 
-NewSoftSerial mySerial(rxPin, txPin);
+SoftwareSerial mySerial(rxPin, txPin);
 
 /*
                      +-\/-+
@@ -56,8 +56,8 @@ typedef struct {
 static RF12Config config;
 
 static char cmd;
-static byte value, stack[30], top, sendLen, dest, quiet;
-static byte testbuf[30], testCounter;
+static byte value, stack[20], top, sendLen, dest, quiet;
+static byte testbuf[20], testCounter;
 
 
 static void saveConfig () {
@@ -216,7 +216,7 @@ void setup() {
     // set the data rate for the NewSoftmymySerial port
     mySerial.begin(9600);
     
-    mySerial.print("\n[RF12demo.Attiny84]\n");
+    mySerial.print("\n[RF12demo.Attiny84]\n\r");
 
     delay(2000);
 
