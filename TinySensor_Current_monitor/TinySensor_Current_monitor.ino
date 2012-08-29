@@ -95,6 +95,10 @@ void setup() {
 
 void loop() {
   
+  #define BODS 7 //BOD Sleep bit in MCUCR
+  #define BODSE 2 //BOD Sleep enable bit in MCUCR
+  MCUCR |= _BV(BODS) | _BV(BODSE); //turn off the brown-out detector
+
   setPrescaler(3);  // div 8, i.e. 1 MHz
   bitClear(PRR, PRADC); // power up the ADC
   ADCSRA |= bit(ADEN); // enable the ADC  
