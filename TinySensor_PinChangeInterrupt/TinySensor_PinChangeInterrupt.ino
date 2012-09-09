@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------------------------
-// Internal temperature measurement of Attiny84 based TinySensor
+// SMS doorbell project http://harizanov.com/2012/09/updating-my-sms-doorbell/
 // harizanov.com
 // GNU GPL V3
 //--------------------------------------------------------------------------------------
