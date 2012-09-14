@@ -9,6 +9,9 @@
 # use lib '/usr/lib/perl5/Device'
 # sudo apt-get install libwww-mechanize-perl
 
+#To install Proc:Daemon
+#perl -MCPAN -e 'install Proc::Daemon' OR sudo apt-get install libproc-daemon-perl 
+
 # Martin Harizanov
 # http://harizanov.com
 
@@ -26,6 +29,7 @@ use Device::SerialPort qw( :PARAM :STAT 0.07 );
 use WWW::Mechanize;
 use Time::localtime;
 use Scalar::Util 'looks_like_number'; 
+use Proc::Daemon;
 
 print "Serial to EmonCMS gateway for RaspberryPi with TinySensor\r\n";
 
@@ -36,11 +40,10 @@ $ob->baudrate(9600);
 $ob->parity("none"); 
 $ob->databits(8); 
 $ob->stopbits(1); 
-$ob->handshake("xoff"); 
+#$ob->handshake("xoff"); 
 $ob->write_settings;
 
-$ob->lookclear; 
-
+#Configure the TinySensor
 $ob->write("\r\n");
 $ob->write("22i");   #Node ID=22
 sleep 2;
@@ -48,12 +51,16 @@ $ob->write("8b");    #868Mhz
 sleep 2;
 $ob->write("210g");  #Group=210
 sleep 2;
-$ob->lookclear;
+
 
 open(SERIAL, "+>$PORT");
 
-while (my $line = trim(<SERIAL>)) {
-       print $line; print "\r\n";
+my $continue = 1;
+$SIG{TERM} = sub { $continue = 0 };
+
+while ($continue) {
+       my $line = trim(<SERIAL>);
+	print $line; print "\r\n";
        my @values = split(' ', $line);
        my $bindata;
        if(looks_like_number($values[0]) && $values[0] >=1 && $values[0]<=26) {
@@ -67,12 +74,16 @@ while (my $line = trim(<SERIAL>)) {
 
 	  #Example of decoding packet content for nodes 17 and 18
           if($values[0]==18 || $values[0]==17) {
+	          my($temperature, $battery) = unpack("ss",$bindata);
+		  $temperature /=100;
+		  print "Temperature $temperature\n";
+		  print "Battery $battery\n";
+	  }
 
-          my($temperature, $battery) = unpack("ss",$bindata);
-	  $temperature /=100;
-	  print "Temperature $temperature\n";
-	  print "Battery $battery\n";
-
+	  #Example of decoding packet content for node 10
+          if($values[0]==10) {
+	          my($realpower, $apparentpower, $vrms, $powerfactor, $irms) = unpack("ssssf",$bindata);
+		  print "Real power: $realpower W Apparent Power: $apparentpower W VRMS: $vrms V Power Factor: $powerfactor IRMS: $irms \n\r";
 	  }
 
           my $msubs ="";
@@ -85,6 +96,7 @@ while (my $line = trim(<SERIAL>)) {
 	  my $hour=localtime->hour();
           my $min=localtime->min();
           $ob->write("$hour,00,$min,00,s\r\n");
+	  sleep(2);
        }
 }
 
